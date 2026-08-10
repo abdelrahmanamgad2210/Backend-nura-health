@@ -307,4 +307,103 @@ class GoldenPathInvariantsTest extends TestCase
             'guest_token' => null,
         ]);
     }
+
+    public function test_guest_can_start_and_progress_an_assessment_without_authentication(): void
+    {
+        $start = $this->postJson('/api/assessments', ['category' => 'Weight management'])
+            ->assertCreated();
+
+        $assessmentId = $start->json('assessment.id');
+
+        $this->assertDatabaseHas('assessments', [
+            'id' => $assessmentId,
+            'user_id' => null,
+        ]);
+
+        $guestToken = Assessment::findOrFail($assessmentId)->guest_token;
+        $this->assertNotNull($guestToken);
+
+        $this->withCookie('guest_assessment_token', $guestToken)
+            ->withCredentials()
+            ->withHeader('Referer', 'http://localhost:3000')
+            ->patchJson("/api/assessments/{$assessmentId}", ['current_step' => 3, 'answers' => ['goal' => 'Lose weight']])
+            ->assertOk()
+            ->assertJsonPath('assessment.current_step', 3);
+
+        $this->withCookie('guest_assessment_token', $guestToken)
+            ->withCredentials()
+            ->withHeader('Referer', 'http://localhost:3000')
+            ->getJson("/api/assessments/{$assessmentId}")
+            ->assertOk()
+            ->assertJsonPath('assessment.answers.goal', 'Lose weight');
+    }
+
+    public function test_guest_cannot_complete_an_assessment_without_authentication(): void
+    {
+        $assessment = Assessment::create([
+            'guest_token' => (string) Str::uuid(),
+            'category' => 'Weight management', 'status' => 'in_progress', 'answers' => [],
+        ]);
+
+        $this->postJson("/api/assessments/{$assessment->id}/complete")->assertUnauthorized();
+    }
+
+    public function test_products_endpoint_returns_arabic_fields_when_locale_is_ar(): void
+    {
+        $product = Product::create([
+            'slug' => 'bilingual-test', 'type' => 'direct',
+            'category' => 'Nutrition', 'category_ar' => 'تغذية',
+            'name' => 'Daily Fibre', 'name_ar' => 'الألياف اليومية',
+            'short_description' => 's', 'short_description_ar' => 'ش',
+            'long_description' => 'l', 'long_description_ar' => 'ل',
+            'price' => 119, 'due_now' => 119,
+            'includes' => ['a'], 'includes_ar' => ['أ'],
+            'flow' => ['b'], 'flow_ar' => ['ب'],
+        ]);
+
+        $this->getJson("/api/products/{$product->slug}?locale=ar")
+            ->assertOk()
+            ->assertJsonPath('product.name', 'الألياف اليومية')
+            ->assertJsonPath('product.category', 'تغذية')
+            ->assertJsonPath('product.includes.0', 'أ')
+            ->assertJsonMissingPath('product.name_ar');
+
+        $this->getJson("/api/products/{$product->slug}?locale=en")
+            ->assertOk()
+            ->assertJsonPath('product.name', 'Daily Fibre');
+
+        // No Arabic value set for this field -> falls back to English rather than null.
+        $noArabic = Product::create([
+            'slug' => 'english-only', 'type' => 'direct', 'category' => 'Nutrition',
+            'name' => 'English Only', 'short_description' => 's', 'long_description' => 'l',
+            'price' => 50, 'due_now' => 50, 'includes' => [], 'flow' => [],
+        ]);
+
+        $this->getJson("/api/products/{$noArabic->slug}?locale=ar")
+            ->assertOk()
+            ->assertJsonPath('product.name', 'English Only');
+    }
+
+    public function test_guest_assessment_merges_into_account_on_login(): void
+    {
+        $patient = $this->patient();
+        $guestToken = (string) Str::uuid();
+
+        $assessment = Assessment::create([
+            'guest_token' => $guestToken,
+            'category' => 'Weight management', 'status' => 'in_progress', 'answers' => [],
+        ]);
+
+        $this->withCookie('guest_assessment_token', $guestToken)
+            ->withCredentials()
+            ->withHeader('Referer', 'http://localhost:3000')
+            ->postJson('/api/login', ['email' => $patient->email, 'password' => 'password'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('assessments', [
+            'id' => $assessment->id,
+            'user_id' => $patient->id,
+            'guest_token' => null,
+        ]);
+    }
 }

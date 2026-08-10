@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Assessment;
 use App\Models\CartItem;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
         $this->mergeGuestCart($request, $user);
+        $this->mergeGuestAssessments($request, $user);
 
         return response()->json(['user' => $user]);
     }
@@ -49,6 +51,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
         $this->mergeGuestCart($request, Auth::user());
+        $this->mergeGuestAssessments($request, Auth::user());
 
         return response()->json(['user' => Auth::user()]);
     }
@@ -88,5 +91,25 @@ class AuthController extends Controller
             ->update(['user_id' => $user->id, 'guest_token' => null]);
 
         CartItem::where('guest_token', $token)->delete();
+    }
+
+    /**
+     * An assessment answered while browsing as a guest is tied to a
+     * `guest_assessment_token` cookie rather than a user. On login/register,
+     * claim it for the now-authenticated account — unlike the cart there's no
+     * uniqueness constraint to dedupe against, so this is a plain reassign.
+     */
+    private function mergeGuestAssessments(Request $request, User $user): void
+    {
+        $token = $request->cookie('guest_assessment_token');
+
+        if (! $token) {
+            return;
+        }
+
+        Assessment::where('guest_token', $token)->update([
+            'user_id' => $user->id,
+            'guest_token' => null,
+        ]);
     }
 }
