@@ -30,5 +30,12 @@ class UserSeeder extends Seeder
             'role' => 'pharmacist',
             'emirates_id_verified' => true,
         ]);
+
+        User::updateOrCreate(['email' => 'admin@nura.demo'], [
+            'name' => 'Nura Ops Admin',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+            'emirates_id_verified' => true,
+        ]);
     }
 }

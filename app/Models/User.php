@@ -40,6 +40,11 @@ class User extends Authenticatable
         return $this->role === 'pharmacist';
     }
 
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
     public function orders()
     {
         return $this->hasMany(Order::class);

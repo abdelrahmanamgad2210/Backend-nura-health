@@ -1,5 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\ClinicalCaseController as AdminClinicalCaseController;
+use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AssessmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
@@ -58,4 +63,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pharmacy/prescriptions/{prescription}', [PharmacyController::class, 'show']);
     Route::patch('/pharmacy/prescriptions/{prescription}/checklist', [PharmacyController::class, 'updateChecklist']);
     Route::post('/pharmacy/prescriptions/{prescription}/accept', [PharmacyController::class, 'accept']);
+
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+
+        Route::get('/products', [AdminProductController::class, 'index']);
+        Route::post('/products', [AdminProductController::class, 'store']);
+        Route::patch('/products/{product}', [AdminProductController::class, 'update']);
+        Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
+
+        Route::get('/users', [AdminUserController::class, 'index']);
+
+        Route::get('/orders', [AdminOrderController::class, 'index']);
+        Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
+
+        Route::get('/cases', [AdminClinicalCaseController::class, 'index']);
+    });
 });
